@@ -2,24 +2,39 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/google/uuid"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
 func main() {
 	n := maelstrom.NewNode()
-	n.Handle("echo", func(msg maelstrom.Message) error {
+	n.Handle("generate", func(msg maelstrom.Message) error {
 		// Unmarshal the message body as an loosely-typed map.
 		var body map[string]any
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
 
-		// Update the message type to return back.
-		body["type"] = "echo_ok"
+		nodeID := n.ID()
+		if nodeID == "" {
+			return errors.New("node ID not set")
+		}
 
-		// Echo the original message back with the updated message type.
-		return n.Reply(msg, body)
+		uniqueID, err := uuid.NewRandom()
+		if err != nil {
+			return fmt.Errorf("failed to generate unique ID: %w", err)
+		}
+
+		// Build a unique ID by combining the generated UUID with the node ID.
+		responseBody := make(map[string]any)
+		responseBody["id"] = uniqueID.String() + "_" + nodeID
+		responseBody["type"] = "generate_ok"
+
+		return n.Reply(msg, responseBody)
 	})
 
 	if err := n.Run(); err != nil {
