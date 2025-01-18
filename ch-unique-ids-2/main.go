@@ -19,8 +19,11 @@ func main() {
 			return err
 		}
 
-		// Build a unique ID by combining the generated UUID with the node ID.
 		responseBody := make(map[string]any)
+
+		// TODO: implement sortable unique ids based on timestamp (snowflake like)
+
+		// Generate a random string and combine it with node id to create a unique id.
 		responseBody["id"] = fmt.Sprintf("%s-%s", generateRandomString(16), n.ID())
 		responseBody["type"] = "generate_ok"
 
