@@ -20,28 +20,28 @@ func main() {
 	}
 }
 
-type nodeMetadata struct {
+type nodeServer struct {
 	node       *maelstrom.Node
 	messagesMu sync.RWMutex
 	messages   []int
 }
 
-func newNodeMetadata(n *maelstrom.Node) *nodeMetadata {
-	return &nodeMetadata{node: n}
+func newNodeMetadata(n *maelstrom.Node) *nodeServer {
+	return &nodeServer{node: n}
 }
 
-func (nm *nodeMetadata) handleRead(msg maelstrom.Message) error {
-	nm.messagesMu.RLock()
-	messages := nm.messages
-	nm.messagesMu.RUnlock()
+func (ns *nodeServer) handleRead(msg maelstrom.Message) error {
+	ns.messagesMu.RLock()
+	messages := ns.messages
+	ns.messagesMu.RUnlock()
 
-	return nm.node.Reply(msg, map[string]any{
+	return ns.node.Reply(msg, map[string]any{
 		"type":     "read_ok",
 		"messages": messages,
 	})
 }
 
-func (nm *nodeMetadata) handleBroadcast(msg maelstrom.Message) error {
+func (ns *nodeServer) handleBroadcast(msg maelstrom.Message) error {
 	body := struct {
 		Message int `json:"message"`
 	}{}
@@ -50,17 +50,17 @@ func (nm *nodeMetadata) handleBroadcast(msg maelstrom.Message) error {
 		return err
 	}
 
-	nm.messagesMu.Lock()
-	nm.messages = append(nm.messages, body.Message)
-	nm.messagesMu.Unlock()
+	ns.messagesMu.Lock()
+	ns.messages = append(ns.messages, body.Message)
+	ns.messagesMu.Unlock()
 
-	return nm.node.Reply(msg, map[string]any{
+	return ns.node.Reply(msg, map[string]any{
 		"type": "broadcast_ok",
 	})
 }
 
-func (m *nodeMetadata) handleTopology(msg maelstrom.Message) error {
-	return m.node.Reply(msg, map[string]any{
+func (ns *nodeServer) handleTopology(msg maelstrom.Message) error {
+	return ns.node.Reply(msg, map[string]any{
 		"type": "topology_ok",
 	})
 }
