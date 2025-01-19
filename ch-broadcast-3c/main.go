@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log"
 	"maps"
+	"os"
+	"os/signal"
 	"sync"
 	"time"
 
@@ -12,6 +14,9 @@ import (
 )
 
 func main() {
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	storage := newMessagesStorage()
 	n := maelstrom.NewNode()
 	ns := newNodeServer(n, storage)
@@ -22,11 +27,15 @@ func main() {
 	n.Handle("sync_state", ns.handleSyncState)
 
 	stateSync := newStateSyncronizer(n, storage, time.Second)
-	go stateSync.run(context.Background())
+	go stateSync.run(rootCtx)
 
-	if err := n.Run(); err != nil {
-		log.Fatal(err)
-	}
+	go func() {
+		if err := n.Run(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	<-rootCtx.Done()
 }
 
 type nodeServer struct {
