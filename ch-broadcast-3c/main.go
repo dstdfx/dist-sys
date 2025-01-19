@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"maps"
 	"sync"
 	"time"
@@ -24,7 +25,7 @@ func main() {
 	go stateSync.run(context.Background())
 
 	if err := n.Run(); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
@@ -237,22 +238,22 @@ func newMessagesStorage() *messagesStorage {
 
 func (ms *messagesStorage) addMessage(msg int) (duplicate bool) {
 	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+
 	_, duplicate = ms.messages[msg]
 	if !duplicate {
 		ms.messages[msg] = struct{}{}
 	}
-	ms.messagesMu.Unlock()
 
 	return duplicate
 }
 
 func (ms *messagesStorage) getMessages() []int {
 	ms.messagesMu.RLock()
-	messages := ms.messages
-	ms.messagesMu.RUnlock()
+	defer ms.messagesMu.RUnlock()
 
-	msgs := make([]int, 0, len(messages))
-	for k := range messages {
+	msgs := make([]int, 0, len(ms.messages))
+	for k := range ms.messages {
 		msgs = append(msgs, k)
 	}
 
@@ -261,8 +262,10 @@ func (ms *messagesStorage) getMessages() []int {
 
 func (ms *messagesStorage) mergeMessages(newMessages []int) {
 	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+
 	for _, msg := range newMessages {
 		ms.messages[msg] = struct{}{}
 	}
-	ms.messagesMu.Unlock()
+
 }
