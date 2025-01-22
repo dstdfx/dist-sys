@@ -1,4 +1,4 @@
-module ch-broadcast-3a
+module ch1-echo
 
 go 1.23.4
 

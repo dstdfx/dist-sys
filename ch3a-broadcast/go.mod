@@ -1,4 +1,4 @@
-module ch-broadcast-3c
+module ch3a-broadcast
 
 go 1.23.4
 

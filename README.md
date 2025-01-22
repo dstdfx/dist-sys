@@ -6,27 +6,27 @@ My solutions to [Gossip Glomers](https://fly.io/dist-sys/) a series of distribut
 
 ## 1. Echo
 
-[here](./ch-echo-1/main.go)
+[here](./ch1-echo/main.go)
 
 ## 2. Unique ID
 
 Used combinations of unique string + node id.
-[here](./ch-unique-id-2/main.go)
+[here](./ch2-unique-id/main.go)
 
 ## 3. Broadcast
 
 ### 3a. Single node implementation, no broadcasting
-[3a](./ch-broadcast-3a/main.go)
+[3a](./ch3a-broadcast/main.go)
 
 ### 3b. Multiple nodes, broadcasting
 
 Used gossip-style broadcasting: each node forwards a message to its neighbors. To prevent infinitive loops, we keep track of the messages we've seen.
-[3b](./ch-broadcast-3b/main.go)
+[3b](./ch3b-broadcast/main.go)
 
 ### 3c. Fault tolerance broadcasting
 
 In this implementation, I kept the same approach as in 3b, but additionally, I added a periodic syncronization between nodes (every second is enough to pass tests). This way, if a node goes down, it can eventually recover its state from its neighbors.
-[3c](./ch-broadcast-3c/main.go)
+[3c](./ch3c-broadcast/main.go)
 
 ### 3d. Efficient Broadcast Part 1
 
@@ -38,7 +38,7 @@ Other minor improvements:
 - Changed the interval of the periodic state syncronization between nodes to 3 seconds to reduce the number of messages sent
 - Use `SyncRPC` instead of `Send` to make syncronization more reliable
 
-[3d](./ch-broadcast-3d/main.go)
+[3d](./ch3d-broadcast/main.go)
 
 This solution also satisfies the requirements of the next challange `3e`, here's the final metrics:
 ```

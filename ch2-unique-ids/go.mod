@@ -1,4 +1,4 @@
-module ch-unique-ids-2
+module ch2-unique-ids
 
 go 1.23.4
 

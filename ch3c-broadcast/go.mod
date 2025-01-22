@@ -1,4 +1,4 @@
-module ch-echo-1
+module ch3c-broadcast
 
 go 1.23.4
 

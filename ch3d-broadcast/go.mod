@@ -1,4 +1,4 @@
-module ch-broadcast-3d
+module ch3d-broadcast
 
 go 1.23.4
 
