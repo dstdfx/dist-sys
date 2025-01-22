@@ -6,29 +6,33 @@ My solutions to [Gossip Glomers](https://fly.io/dist-sys/) a series of distribut
 
 ## 1. Echo
 
-[here](./ch1-echo/main.go)
+[solution](./ch1-echo/main.go)
 
 ## 2. Unique ID
 
 Used combinations of unique string + node id.
-[here](./ch2-unique-id/main.go)
+[solution](./ch2-unique-id/main.go)
 
 ## 3. Broadcast
 
 ### 3a. Single node implementation, no broadcasting
-[3a](./ch3a-broadcast/main.go)
+[solution](./ch3a-broadcast/main.go)
 
 ### 3b. Multiple nodes, broadcasting
 
+[solution](./ch3b-broadcast/main.go)
+
 Used gossip-style broadcasting: each node forwards a message to its neighbors. To prevent infinitive loops, we keep track of the messages we've seen.
-[3b](./ch3b-broadcast/main.go)
 
 ### 3c. Fault tolerance broadcasting
 
+[solution](./ch3c-broadcast/main.go)
+
 In this implementation, I kept the same approach as in 3b, but additionally, I added a periodic syncronization between nodes (every second is enough to pass tests). This way, if a node goes down, it can eventually recover its state from its neighbors.
-[3c](./ch3c-broadcast/main.go)
 
 ### 3d. Efficient Broadcast Part 1
+
+[solution](./ch3d-broadcast/main.go)
 
 In this implementation, I decided to ignore the default topology offered by maelstrom, instead, a node that recieves
 initial "broadcast" message becomes "primary", meaning it will be the one responsible for broadcasting messages to the rest of the nodes. In this case, the "primary" node becomes a single point of failure, if it goes down before the rest of the nodes have received the message, the message will be lost. To mitigate this, I added a random "backup" node, that is choosen every time a new "broadcast" message is received.
@@ -37,8 +41,6 @@ For the sake of simplicity, the "backup" node just forwards the same message to 
 Other minor improvements:
 - Changed the interval of the periodic state syncronization between nodes to 3 seconds to reduce the number of messages sent
 - Use `SyncRPC` instead of `Send` to make syncronization more reliable
-
-[3d](./ch3d-broadcast/main.go)
 
 This solution also satisfies the requirements of the next challange `3e`, here's the final metrics:
 ```
