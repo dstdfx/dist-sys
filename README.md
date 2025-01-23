@@ -34,7 +34,7 @@ In this implementation, I kept the same approach as in 3b, but additionally, I a
 
 [solution](./ch3d-broadcast/main.go)
 
-In this implementation, I decided to ignore the default topology offered by maelstrom, instead, a node that recieves
+In this implementation, I decided to ignore the default topology offered by maelstrom, instead, a node that receives
 initial "broadcast" message becomes "primary", meaning it will be the one responsible for broadcasting messages to the rest of the nodes. In this case, the "primary" node becomes a single point of failure, if it goes down before the rest of the nodes have received the message, the message will be lost. To mitigate this, I added a random "backup" node, that is choosen every time a new "broadcast" message is received.
 For the sake of simplicity, the "backup" node just forwards the same message to the rest of the nodes, but it could be further improved, for example, the backup node can wait for some period of time before broadcasting and/or then check N random nodes with "read" call, in order to confirm that the message was already received.
 
@@ -55,4 +55,10 @@ This solution also satisfies the requirements of the next challange `3e`, here's
 Possible further improvements:
 - Change the number of nodes we sync state with to reduce the network load (e.g. sync with only log(N)/sqrt(N) random nodes)
 - Implement a more sophisticated backup node that can confirm that the message was received by the rest of the nodes
+
+## 4. Grow-Only Counter
+
+[solution](./ch4-counter/main.go)
+
+Implemented a simplified version of the [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) G-Counter, where each node writes its changes in a separate key, e.g., `counter_<node-id>`. This way, we don't have any concurrency issues that would be present if we used a single key for all nodes. Additionally, each node periodically shares its state with the rest of the nodes, so they can merge the changes during a `read` request.
 
