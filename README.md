@@ -10,8 +10,10 @@ My solutions to [Gossip Glomers](https://fly.io/dist-sys/) a series of distribut
 
 ## 2. Unique ID
 
-Used combinations of unique string + node id.
+
 [solution](./ch2-unique-id/main.go)
+
+Used combinations of unique string + node id.
 
 ## 3. Broadcast
 
