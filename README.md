@@ -64,3 +64,11 @@ Possible further improvements:
 
 Implemented a simplified version of the [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) G-Counter, where each node writes its changes in a separate key, e.g., `counter_<node-id>`. This way, we don't have any concurrency issues that would be present if we used a single key for all nodes. Additionally, each node periodically shares its state with the rest of the nodes, so they can merge the changes during a `read` request.
 
+## 5. Kafka-Style Log
+
+### 5a. Single-Node Kafka Style Log
+
+[solution](./ch5a-log/main.go)
+
+Nothing special here, just a simple implementation of a log, where each message has an offset (index slice).
+
