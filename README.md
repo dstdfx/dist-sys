@@ -78,3 +78,12 @@ Nothing special here, just a simple implementation of a log, where each message 
 
 As this challenge is solely about correctness and not efficiency, we can just read/write data to the linearizable storage.
 For each log we keep a separate key in the storage, e.g. `log:<log-id>`, and `log:<log-id>:offset` to store the last committed offset. Use compare-and-swap to ensure atomicity of the write operations.
+
+Results:
+```
+ :availability {:valid? true, :ok-fraction 0.9994578},
+ :net {:all {:send-count 132854,
+             :recv-count 132854,
+             :msg-count 132854,
+             :msgs-per-op 8.004217},
+```
