@@ -26,13 +26,13 @@ Used combinations of unique string + node id.
 
 Used gossip-style broadcasting: each node forwards a message to its neighbors. To prevent infinitive loops, we keep track of the messages we've seen.
 
-### 3c. Fault tolerance broadcasting
+### 3c. Fault tolerant broadcasting
 
 [solution](./ch3c-broadcast/main.go)
 
 In this implementation, I kept the same approach as in 3b, but additionally, I added a periodic syncronization between nodes (every second is enough to pass tests). This way, if a node goes down, it can eventually recover its state from its neighbors.
 
-### 3d. Efficient Broadcast Part 1
+### 3d. Efficient Broadcast Part 1/2
 
 [solution](./ch3d-broadcast/main.go)
 
