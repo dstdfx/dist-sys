@@ -68,7 +68,13 @@ Implemented a simplified version of the [CRDT](https://en.wikipedia.org/wiki/Con
 
 ### 5a. Single-Node Kafka Style Log
 
-[solution](./ch5a-log/main.go)
+[solution](./ch5a-kafka/main.go)
 
 Nothing special here, just a simple implementation of a log, where each message has an offset (index slice).
 
+### 5b. Multi-Node Kafka Style Log
+
+[solution](./ch5b-kafka/main.go)
+
+As this challenge is solely about correctness and not efficiency, we can just read/write data to the linearizable storage.
+For each log we keep a separate key in the storage, e.g. `log:<log-id>`, and `log:<log-id>:offset` to store the last committed offset. Use compare-and-swap to ensure atomicity of the write operations.
