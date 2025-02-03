@@ -76,14 +76,39 @@ Nothing special here, just a simple implementation of a log, where each message 
 
 [solution](./ch5b-kafka/main.go)
 
-As this challenge is solely about correctness and not efficiency, we can just read/write data to the linearizable storage.
-For each log we keep a separate key in the storage, e.g. `log:<log-id>`, and `log:<log-id>:offset` to store the last committed offset. Use compare-and-swap to ensure atomicity of the write operations.
+My initial thought was to store everything to the linearizable storage (this approach passes the tests though), but in real-world it would be too slow due to constant syncronization between nodes. Moreover, the task definition contains a hint that we should reason about where to use "linearizable" and where "sequential" storage.
+So, I decided to use linearizable storage only for the metadata (last commited offset and last used offset) as it must be 
+consistent across all nodes right away. For the log itself, I used a sequential storage as we can afford eventual consistency here.
+
+Keys structure:
+```
+log:<id>:<offset> -> <message>
+log:<id>:offset -> <last-used-offset>
+log:<id>:last_commited_offset -> <last-commited-offset>
+```
 
 Results:
 ```
- :availability {:valid? true, :ok-fraction 0.9994578},
- :net {:all {:send-count 132854,
-             :recv-count 132854,
-             :msg-count 132854,
-             :msgs-per-op 8.004217},
+ :availability {:valid? true, :ok-fraction 0.9995144},
+ :net {:all {:send-count 249732,
+             :recv-count 249732,
+             :msg-count 249732,
+             :msgs-per-op 15.158239},
+       :clients {:send-count 40758,
+                 :recv-count 40758,
+                 :msg-count 40758},
+       :servers {:send-count 208974,
+                 :recv-count 208974,
+                 :msg-count 208974,
+                 :msgs-per-op 12.68431},
+       :valid? true},
+ :workload {:valid? true,
+            :worst-realtime-lag {:time 15.640901667,
+                                 :process 8,
+                                 :key "309",
+                                 :lag 0.006614833},
+            :bad-error-types (),
+            :error-types (),
+            :info-txn-causes ()},
+ :valid? true}
 ```

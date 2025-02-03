@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -16,8 +17,7 @@ func main() {
 	defer stop()
 
 	n := maelstrom.NewNode()
-	kv := maelstrom.NewLinKV(n)
-	ns := newNodeServer(n, kv)
+	ns := newNodeServer(n, maelstrom.NewSeqKV(n), maelstrom.NewLinKV(n))
 
 	n.Handle("send", ns.handleSend)
 	n.Handle("poll", ns.handlePoll)
@@ -34,21 +34,73 @@ func main() {
 }
 
 type nodeServer struct {
-	node *maelstrom.Node
-	kv   *maelstrom.KV
+	node  *maelstrom.Node
+	linKV *maelstrom.KV
+	seqKV *maelstrom.KV
 }
 
-func newNodeServer(n *maelstrom.Node, kv *maelstrom.KV) *nodeServer {
+func newNodeServer(n *maelstrom.Node, linKV, seqKV *maelstrom.KV) *nodeServer {
 	return &nodeServer{
-		node: n,
-		kv:   kv,
+		node:  n,
+		linKV: linKV,
+		seqKV: seqKV,
 	}
 }
 
 const (
-	logKeyPrefix = "log:"
-	logOffsetFmt = logKeyPrefix + "%s:offset"
+	logOffsetKeyFmt            = "log:%s:%d"                   // log:<log-id>:<offset> -> msg
+	logOffsetKey               = "log:%s:offset"               // log:<log-id> -> offset counter
+	logOffsetCommitedOffsetKey = "log:%s:last_commited_offset" // log:<log-id>:last_commited_offset -> last commited offset
 )
+
+func (ns *nodeServer) getLogMsgKey(logID string, offset int) string {
+	return fmt.Sprintf(logOffsetKeyFmt, logID, offset)
+}
+
+func (ns *nodeServer) getLogOffsetKey(logID string) string {
+	return fmt.Sprintf(logOffsetKey, logID)
+}
+
+func (ns *nodeServer) getLastCommitedOffsetKey(logID string) string {
+	return fmt.Sprintf(logOffsetCommitedOffsetKey, logID)
+}
+
+func (ns *nodeServer) getNextOffset(logID string) int {
+	// Get last offset from linearizable kv with retries and allocate the next offset
+	for {
+		offset, err := ns.linKV.ReadInt(context.Background(), ns.getLogOffsetKey(logID))
+		if err != nil {
+			if maelstrom.ErrorCode(err) != maelstrom.KeyDoesNotExist {
+				// Retry
+				continue
+			}
+
+			// Initial offset
+			offset = -1
+		}
+
+		nextOffset := offset + 1
+		err = ns.linKV.CompareAndSwap(context.Background(), ns.getLogOffsetKey(logID), offset, nextOffset, true)
+		if err == nil {
+			return nextOffset
+		}
+	}
+}
+
+func (ns *nodeServer) getLastOffset(logID string) int {
+	// Get last offset from linearizable kv with retries
+	for {
+		offset, err := ns.linKV.ReadInt(context.Background(), ns.getLogOffsetKey(logID))
+		if err == nil {
+			return offset
+		}
+
+		if maelstrom.ErrorCode(err) == maelstrom.KeyDoesNotExist {
+			// Initial offset
+			return -1
+		}
+	}
+}
 
 func (ns *nodeServer) handleSend(msg maelstrom.Message) error {
 	body := struct {
@@ -62,30 +114,17 @@ func (ns *nodeServer) handleSend(msg maelstrom.Message) error {
 	ctx := context.Background()
 	var offset int
 
-	// log:<log id> -> [msg1, msg2, ...]
-
+	// To write a message to the log (log:<log-id>:<offset> -> msg):
+	// 1. Get the last offset for the log
+	// 2. Write the message to the log
+	// 3. Update the latest offset for the log
+	// In case of failure, retry the whole process again
 	for {
-		lastLog := make([]int, 0)
+		nextOffset := ns.getNextOffset(body.Key)
+		offset = nextOffset
 
-		err := ns.kv.ReadInto(ctx, logKeyPrefix+body.Key, &lastLog)
-		if err != nil && maelstrom.ErrorCode(err) != maelstrom.KeyDoesNotExist {
-			continue
-		}
-
-		var log []int
-		if len(lastLog) != 0 {
-			log = make([]int, len(lastLog))
-			copy(log, lastLog)
-		} else {
-			log = make([]int, 0, 1)
-		}
-
-		// Append a message to the log and get its offset
-		log = append(log, body.Msg)
-		offset = len(log) - 1
-
-		// Attempt to CAS the log, otherwise retry
-		err = ns.kv.CompareAndSwap(ctx, logKeyPrefix+body.Key, lastLog, log, true)
+		// Write the message to the log
+		err := ns.seqKV.Write(ctx, ns.getLogMsgKey(body.Key, nextOffset), body.Msg)
 		if err == nil {
 			break
 		}
@@ -97,6 +136,11 @@ func (ns *nodeServer) handleSend(msg maelstrom.Message) error {
 	})
 }
 
+type keyEntry struct {
+	key  string
+	logs [][]int
+}
+
 func (ns *nodeServer) handlePoll(msg maelstrom.Message) error {
 	body := struct {
 		Offsets map[string]int `json:"offsets"`
@@ -105,20 +149,46 @@ func (ns *nodeServer) handlePoll(msg maelstrom.Message) error {
 		return err
 	}
 
-	respMsgs := make(map[string][][]int)
+	logsCh := make(chan keyEntry, len(body.Offsets))
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(body.Offsets))
 
 	// Read the logs from kv and return requested offsets
 	for key, offset := range body.Offsets {
-		log, ok := ns.readLogWithRetries(key)
-		if !ok {
-			continue
-		}
+		go func() {
+			defer wg.Done()
 
-		respMsgs[key] = make([][]int, 0, len(log)-offset)
+			// Get last offset for the log
+			lastOffset := ns.getLastOffset(key)
+			if offset > lastOffset {
+				// Start offset should be less than or equal to the last offset, abort
 
-		for i := offset; i < len(log); i++ {
-			respMsgs[key] = append(respMsgs[key], []int{i, log[i]}) // [offset, msg]
-		}
+				return
+			}
+
+			logs := make([][]int, 0, lastOffset-offset+1)
+
+			for i := offset; i <= lastOffset; i++ {
+				log, ok := ns.readLogWithRetries(key, i)
+				if !ok {
+					// Key does not exist -> skip featching further
+					break
+				}
+
+				logs = append(logs, []int{i, log}) // [offset, msg]
+			}
+
+			logsCh <- keyEntry{key, logs}
+		}()
+	}
+
+	wg.Wait()
+	close(logsCh)
+
+	respMsgs := make(map[string][][]int, len(body.Offsets))
+	for logs := range logsCh {
+		respMsgs[logs.key] = logs.logs
 	}
 
 	return ns.node.Reply(msg, map[string]any{
@@ -127,20 +197,17 @@ func (ns *nodeServer) handlePoll(msg maelstrom.Message) error {
 	})
 }
 
-func (ns *nodeServer) readLogWithRetries(logID string) ([]int, bool) {
-	var log []int
+func (ns *nodeServer) readLogWithRetries(logID string, offset int) (int, bool) {
 	for {
-		err := ns.kv.ReadInto(context.Background(), logKeyPrefix+logID, &log)
+		logMsg, err := ns.seqKV.ReadInt(context.Background(), ns.getLogMsgKey(logID, offset))
 		if err == nil {
-			break
+			return logMsg, true
 		}
 
 		if maelstrom.ErrorCode(err) == maelstrom.KeyDoesNotExist {
-			return nil, false
+			return -1, false
 		}
 	}
-
-	return log, true
 }
 
 func (ns *nodeServer) handleCommitOffsets(msg maelstrom.Message) error {
@@ -152,18 +219,21 @@ func (ns *nodeServer) handleCommitOffsets(msg maelstrom.Message) error {
 	}
 
 	ctx := context.Background()
-
 	for key, offset := range body.Offsets {
-		offsetKey := fmt.Sprintf(logOffsetFmt, key)
 
+		// Update last commited offset in linearizable kv with retries
 		for {
-			lastOffset, err := ns.kv.ReadInt(ctx, offsetKey)
+			lastOffset, err := ns.linKV.ReadInt(ctx, ns.getLastCommitedOffsetKey(key))
 			if err != nil && maelstrom.ErrorCode(err) != maelstrom.KeyDoesNotExist {
 				continue
 			}
 
-			// Attempt to CAS the log's offset, otherwise retry
-			err = ns.kv.CompareAndSwap(ctx, offsetKey, lastOffset, offset, true)
+			if lastOffset >= offset {
+				// Already commited
+				break
+			}
+
+			err = ns.linKV.CompareAndSwap(ctx, ns.getLastCommitedOffsetKey(key), lastOffset, offset, true)
 			if err == nil {
 				break
 			}
@@ -186,7 +256,7 @@ func (ns *nodeServer) handleListCommitedOffsets(msg maelstrom.Message) error {
 	commited := make(map[string]int, len(body.Keys))
 
 	for _, key := range body.Keys {
-		offset, err := ns.kv.ReadInt(context.Background(), fmt.Sprintf(logOffsetFmt, key))
+		offset, err := ns.linKV.ReadInt(context.Background(), ns.getLastCommitedOffsetKey(key))
 		if err != nil {
 			continue
 		}
