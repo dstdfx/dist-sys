@@ -115,9 +115,8 @@ func (ns *nodeServer) handleSend(msg maelstrom.Message) error {
 	var offset int
 
 	// To write a message to the log (log:<log-id>:<offset> -> msg):
-	// 1. Get the last offset for the log
+	// 1. Get last used offset and allocate the next one
 	// 2. Write the message to the log
-	// 3. Update the latest offset for the log
 	// In case of failure, retry the whole process again
 	for {
 		nextOffset := ns.getNextOffset(body.Key)
