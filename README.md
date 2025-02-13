@@ -112,3 +112,40 @@ Results:
             :info-txn-causes ()},
  :valid? true}
 ```
+
+### 5c. Efficient Kafka-Style Log
+
+[solution](./ch5c-kafka/main.go)
+
+In this implementation, I decided to improve reads by keeping {offset, message} pairs in a single key, e.g., `log:<id>`.
+Doing so, we don't need to maintain a separate key for latest offset. `poll` handler becomes more efficient, as we don't have to do N separate calls to fetch all messages.
+
+Final results:
+```
+ :availability {:valid? true, :ok-fraction 0.999457},
+ :net {:all {:send-count 127966,
+             :recv-count 127966,
+             :msg-count 127966,
+             :msgs-per-op 7.720888},
+       :clients {:send-count 41014,
+                 :recv-count 41014,
+                 :msg-count 41014},
+       :servers {:send-count 86952,
+                 :recv-count 86952,
+                 :msg-count 86952,
+                 :msgs-per-op 5.2462893},
+       :valid? true},
+ :workload {:valid? true,
+            :worst-realtime-lag {:time 0.0173055,
+                                 :process 0,
+                                 :key "9",
+                                 :lag 0.0},
+            :bad-error-types (),
+            :error-types (),
+            :info-txn-causes ()},
+ :valid? true}
+ ```
+
+As an idea to get rid of CAS operations in `send` handler:
+- choose a "key leader" by hashing the key, so only one node would be responsible for writing to the key
+- in case a request is sent to a non-leader node - forward it to the leader
