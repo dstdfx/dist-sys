@@ -149,3 +149,11 @@ Final results:
 As an idea to get rid of CAS operations in `send` handler:
 - choose a "key leader" by hashing the key, so only one node would be responsible for writing to the key
 - in case a request is sent to a non-leader node - forward it to the leader
+
+## 6. Totally-Available Transactions
+
+### 6a. Single-Node Transactions
+
+[solution](./ch6a-tx/main.go)
+
+Simple single-node implementation, no persistence.
