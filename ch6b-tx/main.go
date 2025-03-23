@@ -179,7 +179,7 @@ type valueEntity struct {
 	// txNodeID is a node identifier of a node that wrote last state.
 	// Used to determine the order of writes and to prevent write conflicts,
 	// e.x when two nodes have the same lamport clock value and they handle the same key update at the same time.
-	// In this case, the node with the lexicografically lower node ID will win.
+	// In this case, the node with the lexicografically higher node ID will win.
 	txNodeID string
 }
 
@@ -208,7 +208,7 @@ func (kvs *kvStorage) writeWithVersionCheck(key, val float64, version int, txNod
 	// Apply the write if either:
 	// - there is no value for the key
 	// - the new version is greater than the current version
-	// - the new version is equal to the current version but the new txNodeID is lexicographically lower
+	// - the new version is equal to the current version but the new txNodeID is lexicographically higher
 	ve, ok := kvs.storage[key]
 	if !ok || ve.version < version || (ve.version == version && ve.txNodeID < txNodeID) {
 		kvs.storage[key] = valueEntity{val: val, version: version}

@@ -157,3 +157,47 @@ As an idea to get rid of CAS operations in `send` handler:
 [solution](./ch6a-tx/main.go)
 
 Simple single-node implementation, no persistence.
+
+### 6b. Multi-Node Transactions
+
+[solution](./ch6b-tx/main.go)
+
+In this part, we have to support "Read Uncommited" consistency model, which means that we can basically return any state available at the moment of the read, even if some of the transactions are not yet commited.
+To achieve this, I kept the same approach as in the previous part, but also added a versioning mechanism for the keys via [Lamport Clock](https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock.html).
+
+Each time we handle a write, we increment the local lamport clock and associate it with the key. When we replicate the change to the rest of the nodes, we only apply the change if either:
+- the key doesn't exist on the node
+- the local version of the key is less than the version of the key we're trying to write
+To guarantee a deterministic order of the operations, we also consider the node id in the comparison (node id is used as a tie-breaker in case of equal versions), see the sequence diagram below.
+
+```mermaid
+sequenceDiagram
+    participant Client1
+    participant Node1
+    participant Node2
+    participant Client2
+
+    Note over Node1, Node2: Lamport clock = 100
+
+    Client1->>Node1: txn: write(key=1, value=123)
+    activate Node1
+    Node1->>Node1: local_lamport += 1 → 101
+    Node1->>Node1: store[key_1] = (123, [101, "node1"])
+    Node1-->>Node2: replicate write(key_1, 123, [101, "node1"])
+    deactivate Node1
+
+    Client2->>Node2: txn: write(key=1, value=321)
+    activate Node2
+    Node2->>Node2: local_lamport += 1 → 101
+    Node2->>Node2: store[key_1] = (321, [101, "node2"])
+    Node2-->>Node1: replicate write(key_1, 321, [101, "node2"])
+    deactivate Node2
+
+    Node1->>Node1: Received [101, "node2"] > [101, "node1"]
+    Node1->>Node1: Update value = 321
+
+    Node2->>Node2: Received [101, "node1"] < [101, "node2"]
+    Node2->>Node2: Ignored
+
+    Note over Node1, Node2: The state between nodes is syncronized:<br/>key_1 = 321, version = [101, "node2"]
+```
