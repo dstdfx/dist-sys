@@ -8,7 +8,8 @@ CH_DIRS := \
 	ch4-counter \
 	ch5a-kafka \
 	ch5b-kafka \
-	ch5c-kafka
+	ch5c-kafka \
+	ch6a-tx
 
 .PHONY: $(CH_DIRS)
 
@@ -25,3 +26,4 @@ ch4: ch4-counter
 ch5a: ch5a-kafka
 ch5b: ch5b-kafka
 ch5c: ch5c-kafka
+ch6a-tx: ch6a-tx
