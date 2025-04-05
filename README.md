@@ -168,6 +168,7 @@ To achieve this, I kept the same approach as in the previous part, but also adde
 Each time we handle a write, we increment the local lamport clock and associate it with the key. When we replicate the change to the rest of the nodes, we only apply the change if either:
 - the key doesn't exist on the node
 - the local version of the key is less than the version of the key we're trying to write
+
 To guarantee a deterministic order of the operations, we also consider the node id in the comparison (node id is used as a tie-breaker in case of equal versions), see the sequence diagram below.
 
 ```mermaid
