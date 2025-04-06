@@ -202,3 +202,15 @@ sequenceDiagram
 
     Note over Node1, Node2: The state between nodes is syncronized:<br/>key_1 = 321, version = [101, "node2"]
 ```
+
+### 6c. Totally-Available, Read Committed Transactions
+
+[solution](./ch6c-tx/main.go)
+
+The purpose of this challange is to support a "Read Commited" consistency model, which means that
+we can only see the changes that have been commited. I decided to make it a bit more "strict" so we can avoid
+non-repeatable reads anomaly. I took similar approach as it's implemented in PostgreSQL repeatable read (aka snapshotisolation) isolation level.
+Every time we handle a transaction:
+- we take a snapshot of the current state
+- handle tx instructions using the snapshot and store the changes locally
+- once the transaction is done, we apply the changes and replicate them to the rest of the nodes
